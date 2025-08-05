@@ -241,12 +241,45 @@ func (sv *StackVisualizer) buildStackGraph(owner, repo string, startPR int) ([]*
 		return stack, nil
 	}
 
-	// stack 형식이 없으면 기존 방식으로 탐색
+	// stack 형식이 없으면 다른 PR들의 stack 정보에서 이 PR이 포함된 것을 찾아보기
 	allPRs, err := sv.fetchAllOpenPRs(owner, repo)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch all PRs: %w", err)
 	}
 
+	// 다른 PR들의 stack 정보를 확인하여 현재 PR이 포함된 stack 찾기
+	for _, prNum := range allPRs {
+		if prNum == startPR {
+			continue
+		}
+		
+		pr, err := sv.fetchPR(owner, repo, prNum)
+		if err != nil {
+			continue // 에러가 있는 PR은 건너뛰기
+		}
+		
+		otherStackPRs, _ := extractStackInfo(pr.Body)
+		if otherStackPRs != nil {
+			// 현재 startPR이 이 stack에 포함되어 있는지 확인
+			for _, stackPRNum := range otherStackPRs {
+				if stackPRNum == startPR {
+					// 찾았다! 이 stack의 모든 PR들을 가져오기
+					var stack []*PullRequest
+					for _, stackPR := range otherStackPRs {
+						stackPRData, err := sv.fetchPR(owner, repo, stackPR)
+						if err != nil {
+							fmt.Printf("Warning: failed to fetch PR #%d: %v\n", stackPR, err)
+							continue
+						}
+						stack = append(stack, stackPRData)
+					}
+					return stack, nil
+				}
+			}
+		}
+	}
+
+	// stack 정보를 찾지 못했으면 기존 방식으로 탐색
 	visited := make(map[int]bool)
 	var stack []*PullRequest
 
