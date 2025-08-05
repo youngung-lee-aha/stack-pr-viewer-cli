@@ -5,9 +5,9 @@ GitHub의 스택형 풀 리퀘스트 의존성을 분석하고 시각화하는 C
 ## 설치 및 빌드
 
 ### Go Install로 설치 (권장)
-
+- mac예시
 ```bash
-brew install golang
+brew install go && echo 'export PATH=$PATH:$(go env GOPATH)/bin' >> ~/.zshrc && source ~/.zshrc
 ```
 
 ```bash
