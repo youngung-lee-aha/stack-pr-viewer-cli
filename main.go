@@ -281,6 +281,35 @@ func (sv *StackVisualizer) buildStackGraph(owner, repo string, startPR int) ([]*
 			}
 			stack = append(stack, pr)
 		}
+		
+		// stack이 있어도 브랜치 관계로 추가 PR들을 찾아서 포함시키기
+		allPRs, err := sv.fetchAllOpenPRs(owner, repo)
+		if err == nil {
+			visited := make(map[int]bool)
+			for _, pr := range stack {
+				visited[pr.Number] = true
+			}
+			
+			// 각 stack PR에 대해 브랜치 관계가 있는 추가 PR들 찾기
+			for _, pr := range stack {
+				branchRelated, err := sv.findRelatedPRsByBranch(owner, repo, pr, allPRs)
+				if err != nil {
+					continue
+				}
+				
+				for _, relatedNum := range branchRelated {
+					if !visited[relatedNum] {
+						relatedPR, err := sv.fetchPR(owner, repo, relatedNum)
+						if err != nil {
+							continue
+						}
+						stack = append(stack, relatedPR)
+						visited[relatedNum] = true
+					}
+				}
+			}
+		}
+		
 		return stack, nil
 	}
 
@@ -348,6 +377,7 @@ func (sv *StackVisualizer) buildStackGraph(owner, repo string, startPR int) ([]*
 			if err != nil {
 				return err
 			}
+			
 			
 			for _, relatedNum := range branchRelated {
 				if err := traverseBranches(relatedNum); err != nil {
