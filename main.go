@@ -21,6 +21,8 @@ type PullRequest struct {
 	Title        string `json:"title"`
 	Body         string `json:"body"`
 	State        string `json:"state"`
+	BaseBranch   string `json:"-"`
+	HeadBranch   string `json:"-"`
 	Dependencies []int  `json:"-"`
 }
 
@@ -69,11 +71,27 @@ func (sv *StackVisualizer) fetchPR(owner, repo string, number int) (*PullRequest
 		return nil, err
 	}
 
+	// base와 head 브랜치 정보 추출
+	baseBranch := ""
+	headBranch := ""
+	if base, ok := prData["base"].(map[string]interface{}); ok {
+		if ref, ok := base["ref"].(string); ok {
+			baseBranch = ref
+		}
+	}
+	if head, ok := prData["head"].(map[string]interface{}); ok {
+		if ref, ok := head["ref"].(string); ok {
+			headBranch = ref
+		}
+	}
+
 	pr := &PullRequest{
-		Number: int(prData["number"].(float64)),
-		Title:  prData["title"].(string),
-		Body:   prData["body"].(string),
-		State:  prData["state"].(string),
+		Number:     int(prData["number"].(float64)),
+		Title:      prData["title"].(string),
+		Body:       prData["body"].(string),
+		State:      prData["state"].(string),
+		BaseBranch: baseBranch,
+		HeadBranch: headBranch,
 	}
 
 	// Dependency 추출
@@ -216,6 +234,31 @@ func (sv *StackVisualizer) findDependents(owner, repo string, targetPR int, allP
 	return dependents, nil
 }
 
+// 브랜치 관계를 기반으로 관련 PR들 찾기
+func (sv *StackVisualizer) findRelatedPRsByBranch(owner, repo string, targetPR *PullRequest, allPRs []int) ([]int, error) {
+	var relatedPRs []int
+	
+	for _, prNum := range allPRs {
+		if prNum == targetPR.Number {
+			continue
+		}
+		
+		pr, err := sv.fetchPR(owner, repo, prNum)
+		if err != nil {
+			continue
+		}
+		
+		// 브랜치 관계 확인:
+		// 1. 이 PR의 base가 targetPR의 head와 같으면 targetPR에 의존
+		// 2. targetPR의 base가 이 PR의 head와 같으면 이 PR이 targetPR에 의존
+		if pr.BaseBranch == targetPR.HeadBranch || targetPR.BaseBranch == pr.HeadBranch {
+			relatedPRs = append(relatedPRs, prNum)
+		}
+	}
+	
+	return relatedPRs, nil
+}
+
 // Stacked PR 전체 그래프 구축
 func (sv *StackVisualizer) buildStackGraph(owner, repo string, startPR int) ([]*PullRequest, error) {
 	// 시작 PR 가져오기
@@ -279,7 +322,59 @@ func (sv *StackVisualizer) buildStackGraph(owner, repo string, startPR int) ([]*
 		}
 	}
 
-	// stack 정보를 찾지 못했으면 기존 방식으로 탐색
+	// stack 정보를 찾지 못했으면 브랜치 관계 기반으로 관련 PR들 찾기
+	relatedPRs, err := sv.findRelatedPRsByBranch(owner, repo, startPRData, allPRs)
+	if err == nil && len(relatedPRs) > 0 {
+		// 브랜치 관계를 통해 연결된 모든 PR들을 재귀적으로 탐색
+		visited := make(map[int]bool)
+		var stack []*PullRequest
+		
+		var traverseBranches func(int) error
+		traverseBranches = func(prNum int) error {
+			if visited[prNum] {
+				return nil
+			}
+			visited[prNum] = true
+			
+			pr, err := sv.fetchPR(owner, repo, prNum)
+			if err != nil {
+				return err
+			}
+			
+			stack = append(stack, pr)
+			
+			// 이 PR과 브랜치 관계가 있는 다른 PR들 찾기
+			branchRelated, err := sv.findRelatedPRsByBranch(owner, repo, pr, allPRs)
+			if err != nil {
+				return err
+			}
+			
+			for _, relatedNum := range branchRelated {
+				if err := traverseBranches(relatedNum); err != nil {
+					return err
+				}
+			}
+			
+			return nil
+		}
+		
+		if err := traverseBranches(startPR); err == nil && len(stack) > 1 {
+			// 브랜치 dependency 순서로 정렬
+			sort.Slice(stack, func(i, j int) bool {
+				// main에 가까운 것부터 (base가 main인 것들을 먼저)
+				if stack[i].BaseBranch == "main" && stack[j].BaseBranch != "main" {
+					return true
+				}
+				if stack[i].BaseBranch != "main" && stack[j].BaseBranch == "main" {
+					return false
+				}
+				return stack[i].Number < stack[j].Number
+			})
+			return stack, nil
+		}
+	}
+
+	// 마지막으로 전통적인 dependency 기반 탐색
 	visited := make(map[int]bool)
 	var stack []*PullRequest
 
