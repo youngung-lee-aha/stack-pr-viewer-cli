@@ -6,22 +6,20 @@ GitHub의 스택형 풀 리퀘스트 의존성을 분석하고 시각화하는 C
 
 ### Go Install로 설치 (권장)
 
-# Go가 없는 경우
-
 ```bash
 brew install golang
 ```
 
 ```bash
 # 직접 설치 (GOPATH/bin에 자동 설치)
-go install github.com/youngung-lee/stack-pr-viewer-cli@latest
+go install github.com/youngung-lee-aha/stack-pr-viewer-cli@latest
 ```
 
 ### 소스에서 빌드
 
 ```bash
 # 레포지토리 클론
-git clone https://github.com/youngung-lee/stack-pr-viewer-cli.git
+git clone https://github.com/youngung-lee-aha/stack-pr-viewer-cli.git
 cd stack-pr-viewer-cli
 
 # 의존성 설치
