@@ -1,4 +1,4 @@
-module stacked-pr-viewer
+module github.com/youngung-lee-aha/stack-pr-viewer-cli
 
 go 1.21
 
