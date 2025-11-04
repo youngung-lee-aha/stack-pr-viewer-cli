@@ -5,7 +5,7 @@ GitHub 스택형 PR 의존성 분석 도구
 ## 설치
 
 ```bash
-cargo install https://github.com/youngung-lee-aha/stack-pr-viewer-cli.git
+cargo install --git https://github.com/youngung-lee-aha/stack-pr-viewer-cli.git
 ```
 
 ## 사용법
