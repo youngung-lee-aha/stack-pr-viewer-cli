@@ -208,6 +208,7 @@ fn print_stack(stack: &[PullRequest], current: u32) {
         println!("- #{} ({}): {}{}", pr.number, pr.state, pr.title, marker);
     }
     println!("--------");
+    println!("\nstack:");
     for pr in stack {
         let marker = if pr.number == current { " <-" } else { "" };
         println!("- #{}{}", pr.number, marker);
